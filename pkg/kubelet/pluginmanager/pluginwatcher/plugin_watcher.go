@@ -18,12 +18,13 @@ package pluginwatcher
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"k8s.io/klog/v2"
-
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
 	"k8s.io/kubernetes/pkg/kubelet/util"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
@@ -93,6 +94,12 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 		}
 	}(fsWatcher)
 
+	// Timed polling traversal plugin dir, Prevent failure to create plugin after getting file event, no subsequent events
+	go wait.Until(func() {
+		if err := w.traversePluginDir(w.path); err != nil {
+			klog.Errorf("failed to traverse plugin socket path %q, err: %v", w.path, err)
+		}
+	}, time.Minute, w.stopCh)
 	return nil
 }
 
